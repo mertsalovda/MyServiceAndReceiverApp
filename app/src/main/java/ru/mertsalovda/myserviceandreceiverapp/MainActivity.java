@@ -1,8 +1,10 @@
 package ru.mertsalovda.myserviceandreceiverapp;
 
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
@@ -11,27 +13,23 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity {
     public TextView tvProgress;
     public ProgressBar pbProgress;
     private Button btnDicrement;
     MyProgressCountService myProgressCountService;
+
     boolean mBound = false;
     private int num;
+    private static final String TAG = "MyTag";
 
-//    Создать проект ++
-//
-//    При запуске приложения создать Bound Service (информация о Bound Service в дополнительных материалах),
-//    в потоке которого постепенно будет меняться значение прогресса и, соответственно, обновляться ProgressBar.
-//    Если брать максимум ProgressBar - 100%, то значение прогресса должно меняться на 5% каждые 200 миллисекунд.
-//
-//    По достижению 100% ProgressBar перестает заполняться. В любой момент по нажатию на кнопку шкала уменьшается
-//    на 50%, но не меньше 0%. (75% -> 25%; 35% -> 0%)
-//
-//    Дополнительно: Каждый раз по достижении 100% появляется тост о завершении загрузки.
+    IntentFilter updateIntentFilter;
+    IntentFilter resultIntentFilter;
 
-
+    private RusultBroadcastReceiver resultBroadcastReceiver;
+    private UpdateBroadcastReceiver mUpdateBroadcastReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,43 +42,69 @@ public class MainActivity extends AppCompatActivity {
 
         tvProgress.setText("Progress: " + pbProgress.getProgress() + "%");
 
+        //Настройка IntentFilter
+        updateIntentFilter = new IntentFilter(MyProgressCountService.ACTION_UPDATE);
+        updateIntentFilter.addCategory(Intent.CATEGORY_DEFAULT);
 
+        resultIntentFilter = new IntentFilter(MyProgressCountService.ACTION_END);
+        resultIntentFilter.addCategory(Intent.CATEGORY_DEFAULT);
 
+        //Cоздаём экземпляры ресиверов
+        mUpdateBroadcastReceiver = new UpdateBroadcastReceiver();
+        resultBroadcastReceiver = new RusultBroadcastReceiver();
+
+        //Нажатие кнопки
         btnDicrement.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
 
                 if (mBound) {
-                    num = myProgressCountService.getCountProgress();
+                    //вызываем метод сервиса и обновляем рогрессбар и текст
+                    num = myProgressCountService.updateCount(50);
                     pbProgress.setProgress(num);
                     tvProgress.setText("Progress: " + pbProgress.getProgress() + "%");
                 }
-
-//                pbProgress.setProgress(pbProgress.getProgress() - 50);
-//                tvProgress.setText("Progress: " + pbProgress.getProgress() + "%");
             }
         });
 
+        Intent intent = new Intent(this, MyProgressCountService.class);
+        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        //регистрация ресивера
+        registerReceiver(mUpdateBroadcastReceiver, updateIntentFilter);
+        registerReceiver(resultBroadcastReceiver, resultIntentFilter);
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        //отвязываем сервис
+        if (mBound) {
+            unbindService(mConnection);
+            mBound = false;
+        }
+        //отключаем ресиверы
+        unregisterReceiver(resultBroadcastReceiver);
+        unregisterReceiver(mUpdateBroadcastReceiver);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        Intent intent = new Intent(this, MyProgressCountService.class);
-        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
-
-
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        if (mBound) {
-            unbindService(mConnection);
-            mBound = false;
-        }
     }
 
+    //Привязка сервиса к активити
     private ServiceConnection mConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -91,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
                 num = myProgressCountService.getCountProgress();
                 pbProgress.setProgress(num);
                 tvProgress.setText("Progress: " + pbProgress.getProgress() + "%");
+                myProgressCountService.processRun();
             }
         }
 
@@ -99,5 +124,25 @@ public class MainActivity extends AppCompatActivity {
             mBound = false;
         }
     };
+
+    public class RusultBroadcastReceiver extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Toast.makeText(MainActivity.this, "Load complite", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    public class UpdateBroadcastReceiver extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            //Обновление прогрессбара и текста
+            int update = intent.getIntExtra(MyProgressCountService.EXTRA_KEY_UPDATE, 1);
+            pbProgress.setProgress(update);
+            tvProgress.setText("Progress: " + pbProgress.getProgress() + "%");
+
+        }
+    }
 
 }

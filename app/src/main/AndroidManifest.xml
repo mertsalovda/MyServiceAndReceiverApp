@@ -11,8 +11,7 @@
         android:theme="@style/AppTheme">
         <service
             android:name=".MyProgressCountService"
-            android:enabled="true"
-            android:exported="true"></service>
+            android:exported="false" />
 
         <activity android:name=".MainActivity">
             <intent-filter>
