@@ -115,7 +115,6 @@ public class MainActivity extends AppCompatActivity {
                 num = myProgressCountService.getCountProgress();
                 pbProgress.setProgress(num);
                 tvProgress.setText("Progress: " + pbProgress.getProgress() + "%");
-                myProgressCountService.processRun();
             }
         }
 
@@ -129,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onReceive(Context context, Intent intent) {
-            Toast.makeText(MainActivity.this, "Load complite", Toast.LENGTH_LONG).show();
+            Toast.makeText(MainActivity.this, "Load complite", Toast.LENGTH_SHORT).show();
         }
     }
 

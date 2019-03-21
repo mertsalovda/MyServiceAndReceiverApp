@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit;
 public class MyProgressCountService extends Service {
 
     //Экшины для широковещательных приёмников
-    public static final String ACTION_UPDATE = "ACTION_UPDATE";
-    public static final String ACTION_END = "ACTION_END";
+    public static final String ACTION_UPDATE = "ru.mertsalovda.myserviceandreceiverapp.ACTION_UPDATE";
+    public static final String ACTION_END = "ru.mertsalovda.myserviceandreceiverapp.ACTION_END";
 
     //Ключи
     public static final String EXTRA_KEY_UPDATE = "EXTRA_KEY_UPDATE";
@@ -28,10 +28,12 @@ public class MyProgressCountService extends Service {
 
     //Счётчик
     private int count = 0;
-    //Интервал задержки
+    //Интервалы задержки
     private static final int timeDelay = 200;
+    private static final int startTimeDelay = 2000;
     //Шаг увеличения счётчика
     public static final int stepCount = 5;
+
 
     //Binder для привязки сервиса к активити
     public class MyBinder extends Binder {
@@ -46,15 +48,23 @@ public class MyProgressCountService extends Service {
         mScheduledExecutorService = Executors.newScheduledThreadPool(1);
     }
 
-    //При запуске сервиса запускается процесс вычислений
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        processRun();
-        return super.onStartCommand(intent, flags, startId);
-    }
-
+    //Основыне вычисления
     @Override
     public IBinder onBind(Intent intent) {
+        mScheduledExecutorService.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                if (count < 100) {
+                    count += stepCount;
+
+                    sendUpdate();
+                    if (count == 100) {
+                        processEnd();
+                    }
+                }
+            }
+        }, startTimeDelay, timeDelay, TimeUnit.MILLISECONDS);
+
         return mBinder;
     }
 
@@ -66,44 +76,20 @@ public class MyProgressCountService extends Service {
     //изменить счётчик на определённое количество %
     public int updateCount(int c) {
         if ((count - c) < 0) {
-            restartThread();
             count = 0;
-            processRun();
         } else {
-            restartThread();
             count -= c;
-            processRun();
         }
         return count;
     }
+
     //получить текущее значение счётчика
     public int getCountProgress() {
         return count;
     }
-    //основной процесс вычислений
-    public void processRun() {
 
-        mScheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                while (count != 100) {
-                    count += stepCount;
-                    try {
-                        TimeUnit.MILLISECONDS.sleep(timeDelay);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    sendUpdate();
-                }
-                processEnd();
-                mScheduledExecutorService.shutdownNow();
-
-            }
-        }, timeDelay, timeDelay, TimeUnit.MILLISECONDS);
-    }
-
-    private void sendUpdate(){
-        // посылаем промежуточные данные
+    // посылаем промежуточные данные
+    private void sendUpdate() {
         Intent updateIntent = new Intent();
         updateIntent.setAction(ACTION_UPDATE);
         updateIntent.addCategory(Intent.CATEGORY_DEFAULT);
@@ -111,16 +97,11 @@ public class MyProgressCountService extends Service {
         sendBroadcast(updateIntent);
     }
 
+    //Посылаем сообщение, что загрузка завершена
     private void processEnd() {
         Intent endIntent = new Intent();
         endIntent.setAction(ACTION_END);
         endIntent.addCategory(Intent.CATEGORY_DEFAULT);
         sendBroadcast(endIntent);
     }
-    //перезапустить поток
-    private void restartThread(){
-        mScheduledExecutorService.shutdownNow();
-        mScheduledExecutorService = Executors.newScheduledThreadPool(1);
-    }
-
 }
